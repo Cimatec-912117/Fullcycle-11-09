@@ -1,0 +1,96 @@
+name: OpenTofu
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Initialize
+        run: tofu init -no-color
+
+      - name: Format check
+        run: tofu fmt -check -recursive
+
+      - name: Validate
+        run: tofu validate -no-color
+
+  plan:
+    name: Plan
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Initialize
+        run: tofu init -no-color
+
+      - name: Plan
+        run: tofu plan -no-color -out=plan.out
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tofu-plan
+          path: terraform/plan.out
+
+  apply:
+    name: Apply
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Initialize
+        run: tofu init -no-color
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tofu-plan
+          path: terraform
+
+      - name: Apply
+        run: tofu apply -no-color -auto-approve plan.out
+
+      - name: Upload generated file
+        uses: actions/upload-artifact@v4
+        with:
+          name: exemplo
+          path: terraform/exemplo.txt
